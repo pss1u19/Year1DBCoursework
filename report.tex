@@ -1,0 +1,182 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amssymb}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{listings}
+
+\title{COMP1204 - Coursework 2}
+\author{Pavel Stoyanov}
+\date{ID 31163084}
+
+\begin{document}
+\maketitle
+\section{Relational Model}
+\subsection{EX1}
+The Relation has the following attributes:
+\newline
+\begin{itemize}
+	\item dateRep(DATE)
+	\item day(tinyint)
+	\item month(tinyint)
+	\item year(YEAR)
+	\item cases(int)
+	\item deaths(int)
+	\item countriesAndTerritories(VARCHAR(35))
+	\item geoId(VARCHAR(2))
+	\item countryterritoryCode(VARCHAR(3))
+	\item popData2018(int)
+	\item continentExp(VARCHAR(7))
+\end{itemize}
+\subsection{EX2}
+countriesAndTerritories, countryTerritoryCode, geoId and popData2018 are interchangeable as they are all unique.
+List of Functional Dependencies
+\begin{itemize}
+	\item dateRep $\rightarrow$ day,month,year
+	\item month $\rightarrow$ year
+	\item coutryTerritoryCode $\rightarrow$ geoId,countriesAndTerritories,popData2018,continentExp
+	\item countriesAndTerritories $\rightarrow$ geoId,countryTerritoryCode,popData2018,continentExp
+	\item geoId $\rightarrow$ coutryTerritoryCode,countriesAndTerritories,popData2018,continentExp
+	\item popData2018 $\rightarrow$ coutryTerritoryCode,geoId,countriesAndTerritories,continentExp
+	\item dateRep,countriesAndTerritories $\rightarrow$ cases,deaths
+\end{itemize}
+\subsection{EX3}
+The potential keys are the combinations between dateRep and either of geoId, countriesAndTerritories, popData2018 and countryTerritoryCode because with them you can get to the rest attributes. However popData2018 and countryTerritoryCode are null in some entries which leaves geoId and countriesAndTerritories.
+\subsection{EX4}
+Primary key should be \{dateRep,geoId\} as they are the attributes taking the least amount of space which are not null.
+\section{Normalisation}
+\subsection{EX5}
+The partial key dependencies are 
+\begin{itemize}
+	\item dateRep $\rightarrow$ day,month,year
+	\item geoId $\rightarrow$ coutryTerritoryCode,countriesAndTerritories,popData2018,continentExp
+\end{itemize}
+\subsection{EX6}
+We can decouple with 2 new Relations
+Relation1 based on the Date with the following attributes decoupled from the main Relation leaving only the determinant a.k.a. dateRep there :
+\begin{itemize}
+	\item dateRep(DATE) serving as primary key to the Relation as it is unique for every entry and determinant for the other attributes
+	\item day(tinyint)
+	\item month(tinyint)
+	\item year(YEAR)
+\end{itemize}
+Relation2 based on country with the following attributes decoupled from the main Relation leaving only the determinant a.k.a. geoId there :
+\begin{itemize}
+	\item geoId(VARCHAR(2)) serving as primary key to the Relation as it is unique for every entry not null and determinant for the other attributes
+	\item countriesAndTerritories(VARCHAR(35))
+	\item countryTerritoryCode(VARCHAR(3))
+	\item popData2018(int)
+	\item continentExp(VARCHAR(7))
+\end{itemize}
+\subsection{EX7}
+We have transitive dependency month to year.
+\subsection{EX8}
+We decouple Relation1.1 from Relation1 with the following attributes leaving only the determinant a.k.a. month there :
+\begin{itemize}
+	\item month(tinyint)
+	\item year(YEAR)
+\end{itemize}  
+\subsection{EX9}
+It is BCNF because every candidate key determines the whole row in every relation.
+\section{Modelling}
+\subsection{EX10}
+Using the following lines to import and dump the database
+\begin{lstlisting}
+	.mode csv
+	.import dataset.csv dataset
+	.once dataset.sql
+	.dump
+\end{lstlisting}
+\subsection{EX11}
+Creating the schema with ".read" and ex11.sql : 
+\begin{lstlisting}
+	BEGIN TRANSACTION;
+	CREATE TABLE monthYear(
+	"month" tinyint PRIMARY KEY,
+	"year" YEAR
+	);
+	CREATE TABLE dates(
+	"dateRep" DATE PRIMARY KEY,
+	"day" tinyint,
+	"month" tinyint,
+	FOREIGN KEY (month)
+	REFERENCES "monthYear" (month)
+	ON DELETE CASCADE
+	ON UPDATE NO ACTION
+	);
+	CREATE TABLE countries(
+	"countriesAndTerritories" VARCHAR(35),
+	"geoId" VARCHAR(2) PRIMARY KEY,
+	"countryterritoryCode" VARCHAR(3),
+	"popData2018" int,
+	"continentExp" VARCHAR(10)
+	);
+	CREATE TABLE casesbydate(
+	"dateRep" DATE,
+	"cases" int,
+	"deaths" int,
+	"geoId" VARCHAR(2),
+	PRIMARY KEY (dateRep,geoId),
+	FOREIGN KEY (dateRep)
+	REFERENCES "dates"(dateRep)
+	ON DELETE CASCADE
+	ON UPDATE NO ACTION,
+	FOREIGN KEY (geoId)
+	REFERENCES "countries"(geoId)
+	ON DELETE CASCADE
+	ON UPDATE NO ACTION
+	
+	);
+	COMMIT;
+\end{lstlisting}
+Then dumping into dataset2.sql
+\subsection{EX12}
+\begin{lstlisting}
+	BEGIN TRANSACTION;
+	INSERT INTO monthYear SELECT DISTINCT month,year FROM dataset;
+	INSERT INTO dates SELECT DISTINCT dateRep,day,month FROM dataset;
+	INSERT INTO countries SELECT DISTINCT countriesAndTerritories,geoId,countryterritoryCode,popData2018,continentExp FROM dataset;
+	INSERT INTO casesbydate SELECT dateRep,cases,deaths,geoId FROM dataset;
+	COMMIT;
+\end{lstlisting}
+Then dumping into dataset3.sql
+\subsection{EX13}
+After testing on fresh database
+\section{Querying}
+\subsection{EX14}
+\begin{lstlisting}
+	SELECT SUM(cases),SUM(deaths) 
+	FROM casesbydate;
+\end{lstlisting}
+\subsection{EX15}
+\begin{lstlisting}
+	SELECT dateRep,cases 
+	FROM casesbydate 
+	WHERE geoId LIKE "UK" 
+	ORDER BY dateRep ASC;
+\end{lstlisting}
+\subsection{EX16}
+\begin{lstlisting}
+	SELECT M.dateRep, SUM(M.cases),SUM(M.deaths),C.continentExp
+	FROM casesbydate AS M, countries AS C
+	GROUP BY C.continentExp
+	ORDER BY M.dateRep ASC;
+\end{lstlisting}
+\subsection{EX17}
+\begin{lstlisting}
+	SELECT countries.countriesAndTerritories,
+	(1.0*SUM(casesbydate.cases))/countries.popData2018,
+	(1.0*SUM(casesbydate.deaths))/countries.popData2018 
+	FROM countries, casesbydate
+	GROUP BY countries.geoId;
+\end{lstlisting}
+\subsection{EX18}
+\begin{lstlisting}
+	SELECT countries.countriesAndTerritories,
+	(1.0*SUM(casesbydate.deaths))/(1.0*SUM(casesbydate.cases)) as perc 
+	FROM countries,casesbydate 
+	GROUP BY countries.geoId 
+	ORDER BY perc DESC 
+	LIMIT 10;
+\end{lstlisting}
+\end{document}
